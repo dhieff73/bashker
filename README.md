@@ -280,15 +280,6 @@ Building a container runtime from raw kernel primitives — rather than consumin
 
 ---
 
-##  Roadmap
-
-- [ ] Network namespace isolation (`CLONE_NEWNET`) with `veth` pair + bridge networking
-- [ ] cgroups v2 integration for CPU/memory resource limits
-- [ ] Rootless mode via user namespaces (`CLONE_NEWUSER`)
-- [ ] OCI Image Spec compatibility for pulling from standard registries
-
----
-
 
 
 <div align="center">
