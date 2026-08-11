@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+set -e
+
+BASE_DIR="/var/lib/bashker"
+IMAGES_DIR="$BASE_DIR/images"
+CONTAINERS_DIR="$BASE_DIR/containers"
+STATE_DIR="$BASE_DIR/state"
+
+# Ensure runtime directories exist
+mkdir -p "$IMAGES_DIR" "$CONTAINERS_DIR" "$STATE_DIR"
+
+# Usage Helper
+usage() {
+  echo "Usage: bashker <command> [options]"
+  echo ""
+  echo "Commands:"
+  echo "  pull <image>               Pull a base rootfs image (e.g. alpine)"
+  echo "  run  --name <id> <img|path> <cmd>  Run an application in a new container"
+  echo "  ps                         List running containers"
+  echo "  exec <id> <cmd>            Execute a command inside a running container"
+  echo "  stop <id>                  Stop a running container"
+  echo "  rm   <id>                  Remove a stopped container's files"
+  exit 1
+}
+
+# -------------------------------------------------------------------
+# COMMAND: pull
+# -------------------------------------------------------------------
+cmd_pull() {
+  local img_name="$1"
+  if [ "$img_name" != "alpine" ]; then
+    echo "Error: For this demo, only 'alpine' image pull is pre-configured."
+    exit 1
+  fi
+
+  local target="$IMAGES_DIR/$img_name"
+  if [ -d "$target" ]; then
+    echo "Image '$img_name' already exists."
+    return
+  fi
+
+  echo "Pulling $img_name rootfs..."
+  mkdir -p "$target"
+  curl -sSL https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-3.20.0-x86_64.tar.gz | tar -xz -C "$target"
+  echo "Successfully pulled $img_name."
+}
+
+# -------------------------------------------------------------------
+# COMMAND: run
+# -------------------------------------------------------------------
+cmd_run() {
+  local container_name=""
+  local image=""
+  local app_dir=""
+  
+  # Parse flags
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --name)
+        container_name="$2"
+        shift 2
+        ;;
+      -v|--volume)
+        # Format: host_path:container_path
+        app_dir="$2"
+        shift 2
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  image="$1"
+  shift 1
+  local cmd=("$@")
+
+  if [ -z "$container_name" ] || [ -z "$image" ] || [ ${#cmd[@]} -eq 0 ]; then
+    echo "Error: Missing arguments."
+    echo "Example: sudo bashker run --name webapp alpine python3 -m http.server 8000"
+    exit 1
+  fi
+
+  local c_dir="$CONTAINERS_DIR/$container_name"
+  local img_dir="$IMAGES_DIR/$image"
+
+  if [ ! -d "$img_dir" ]; then
+    echo "Error: Image '$image' not found. Run 'sudo bashker pull $image' first."
+    exit 1
+  fi
+
+  if [ -d "$c_dir" ]; then
+    echo "Error: Container with name '$container_name' already exists."
+    exit 1
+  fi
+
+  # 1. Setup OverlayFS directories
+  mkdir -p "$c_dir"/{lower,upper,work,merged}
+  
+  # Mount OverlayFS
+  mount -t overlay overlay \
+    -o lowerdir="$img_dir",upperdir="$c_dir/upper",workdir="$c_dir/work" \
+    "$c_dir/merged"
+
+  # Bind mount target for pivot_root
+  mount --bind "$c_dir/merged" "$c_dir/merged"
+  mkdir -p "$c_dir/merged/old_root"
+
+  # Handle Volume Mounts if specified (-v /host/path:/app)
+  if [ -n "$app_dir" ]; then
+    IFS=":" read -r host_p container_p <<< "$app_dir"
+    mkdir -p "$c_dir/merged/$container_p"
+    mount --bind "$host_p" "$c_dir/merged/$container_p"
+  fi
+
+  # 2. Launch Container in Background via unshare
+  echo "Starting container '$container_name'..."
+  
+  # Unshare namespaces and execute pivot_root inside
+  unshare --pid --mount --uts --ipc --fork bash -c "
+    hostname '$container_name'
+    cd '$c_dir/merged'
+    pivot_root . old_root
+    mount -t proc proc /proc
+    mount -t sysfs sysfs /sys
+    umount -l /old_root
+    rmdir /old_root
+    exec ${cmd[*]}
+  " &
+
+  local child_pid=$!
+  
+  # Save container metadata
+  echo "$child_pid" > "$STATE_DIR/$container_name.pid"
+  echo "${cmd[*]}" > "$STATE_DIR/$container_name.cmd"
+  echo "Container '$container_name' started with PID $child_pid."
+}
+
+# -------------------------------------------------------------------
+# COMMAND: ps
+# -------------------------------------------------------------------
+cmd_ps() {
+  printf "%-15s %-10s %-10s %-30s\n" "CONTAINER ID" "PID" "STATUS" "COMMAND"
+  echo "-------------------------------------------------------------------"
+  for pid_file in "$STATE_DIR"/*.pid; do
+    [ -e "$pid_file" ] || continue
+    local name=$(basename "$pid_file" .pid)
+    local pid=$(cat "$pid_file")
+    local cmd=$(cat "$STATE_DIR/$name.cmd" 2>/dev/null || echo "N/A")
+    
+    if ps -p "$pid" > /dev/null 2>&1; then
+      printf "%-15s %-10s %-10s %-30s\n" "$name" "$pid" "Running" "$cmd"
+    else
+      printf "%-15s %-10s %-10s %-30s\n" "$name" "$pid" "Exited" "$cmd"
+    fi
+  done
+}
+
+# -------------------------------------------------------------------
+# COMMAND: stop
+# -------------------------------------------------------------------
+cmd_stop() {
+  local name="$1"
+  local pid_file="$STATE_DIR/$name.pid"
+
+  if [ ! -f "$pid_file" ]; then
+    echo "Error: No such running container '$name'."
+    exit 1
+  fi
+
+  local pid=$(cat "$pid_file")
+  echo "Stopping container '$name' (PID $pid)..."
+  kill -9 "$pid" 2>/dev/null || true
+  rm -f "$pid_file"
+  echo "Stopped '$name'."
+}
+
+# -------------------------------------------------------------------
+# COMMAND: rm
+# -------------------------------------------------------------------
+cmd_rm() {
+  local name="$1"
+  local c_dir="$CONTAINERS_DIR/$name"
+
+  if [ -f "$STATE_DIR/$name.pid" ]; then
+    echo "Error: Stop the container before removing it."
+    exit 1
+  fi
+
+  if [ -d "$c_dir" ]; then
+    echo "Cleaning up mounts and filesystem for '$name'..."
+    umount -l "$c_dir/merged" 2>/dev/null || true
+    rm -rf "$c_dir"
+    rm -f "$STATE_DIR/$name.cmd"
+    echo "Container '$name' removed."
+  else
+    echo "Error: Container directory not found."
+  fi
+}
+
+# Main CLI Router
+case "$1" in
+  pull)   shift; cmd_pull "$@" ;;
+  run)    shift; cmd_run "$@" ;;
+  ps)     shift; cmd_ps ;;
+  stop)   shift; cmd_stop "$@" ;;
+  rm)     shift; cmd_rm "$@" ;;
+  *)      usage ;;
+esac
