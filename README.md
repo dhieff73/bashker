@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐚 Bashker
+#  Bashker
 
 ### *A container engine forged in pure Bash — no daemons, no dependencies, just the kernel.*
 
@@ -14,7 +14,7 @@
 
 ---
 
-## 📋 Executive Summary
+##  Executive Summary
 
 **Bashker** is a from-scratch container runtime built entirely in POSIX-adjacent Bash, with zero reliance on `runc`, `containerd`, `libcontainer`, or any Go-based OCI tooling. It exists to answer a question most engineers using Docker every day have never had to answer themselves:
 
@@ -31,7 +31,7 @@ Bashker is not a Docker replacement. It is a transparent, inspectable, hackable 
 
 ---
 
-## 🏗️ Architecture: Container Lifecycle Deep-Dive
+##  Architecture: Container Lifecycle Deep-Dive
 
 The diagram below traces the full execution path of:
 
@@ -44,13 +44,13 @@ From CLI invocation to a fully isolated PID 1 process serving HTTP traffic.
 ```mermaid
 sequenceDiagram
     autonumber
-    actor U as 👤 User (CLI)
-    participant CP as ⚙️ Control Plane
-    participant ST as 💾 Storage Layer (OverlayFS)
-    participant VM as 📂 Volume Mount
-    participant NS as 🔒 Namespace Isolation (unshare)
-    participant RFS as 🌳 Rootfs Swap (pivot_root)
-    participant PROC as 🚀 Process Exec
+    actor U as  User (CLI)
+    participant CP as  Control Plane
+    participant ST as  Storage Layer (OverlayFS)
+    participant VM as  Volume Mount
+    participant NS as  Namespace Isolation (unshare)
+    participant RFS as  Rootfs Swap (pivot_root)
+    participant PROC as  Process Exec
 
     U->>+CP: sudo bashker run --name webapp<br/>-v /host/app:/app alpine python3 -m http.server
 
@@ -103,7 +103,7 @@ sequenceDiagram
     RFS->>+PROC: exec into target binary (replaces shell image)
     PROC->>PROC: exec python3 -m http.server
     PROC->>PROC: Process now runs as PID 1 inside container
-    PROC-->>-U: 🌐 App serving inside isolated environment
+    PROC-->>-U:  App serving inside isolated environment
     end
 
     deactivate CP
@@ -128,7 +128,7 @@ Docker and other OCI-compliant runtimes wrap these same kernel primitives behind
 | **Process Supervision** | `containerd-shim` reparents to PID 1 of container, handles signal forwarding | Container entrypoint *is* PID 1 directly via `exec` — no shim layer, meaning Bashker must handle **zombie reaping and signal forwarding manually** (see Learnings below) |
 
 <details>
-<summary><strong>📦 Why OverlayFS instead of naive directory copying?</strong></summary>
+<summary><strong> Why OverlayFS instead of naive directory copying?</strong></summary>
 
 <br>
 
@@ -137,7 +137,7 @@ A naive container implementation might `cp -r` the base image for every containe
 </details>
 
 <details>
-<summary><strong>🔒 Why unshare + pivot_root instead of chroot?</strong></summary>
+<summary><strong> Why unshare + pivot_root instead of chroot?</strong></summary>
 
 <br>
 
@@ -147,7 +147,7 @@ A naive container implementation might `cp -r` the base image for every containe
 
 ---
 
-## ⚙️ Prerequisites & Installation
+##  Prerequisites & Installation
 
 ### System Requirements
 
@@ -179,7 +179,7 @@ bashker --version
 ```
 
 <details>
-<summary><strong>🩺 Environment sanity check</strong></summary>
+<summary><strong> Environment sanity check</strong></summary>
 
 <br>
 
@@ -199,7 +199,7 @@ This verifies:
 
 ---
 
-## 🖥️ CLI Reference & Usage
+##  CLI Reference & Usage
 
 ### Pull a base rootfs image
 
@@ -245,7 +245,7 @@ bashker rm webapp
 ```
 
 <details>
-<summary><strong>📖 Full command reference</strong></summary>
+<summary><strong> Full command reference</strong></summary>
 
 <br>
 
@@ -267,7 +267,7 @@ bashker doctor                       Run environment/kernel compatibility checks
 
 ---
 
-## 🧠 Technical Learnings & Engineering Takeaways
+## Technical Learnings & Engineering Takeaways
 
 Building a container runtime from raw kernel primitives — rather than consuming one — surfaces failure modes and design constraints that are otherwise invisible behind Docker's abstractions.
 
@@ -281,7 +281,7 @@ Building a container runtime from raw kernel primitives — rather than consumin
 
 ---
 
-## 🗺️ Roadmap
+##  Roadmap
 
 - [ ] Network namespace isolation (`CLONE_NEWNET`) with `veth` pair + bridge networking
 - [ ] cgroups v2 integration for CPU/memory resource limits
@@ -290,11 +290,7 @@ Building a container runtime from raw kernel primitives — rather than consumin
 
 ---
 
-## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for details.
-
----
 
 <div align="center">
 
