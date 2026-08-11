@@ -284,6 +284,6 @@ Building a container runtime from raw kernel primitives — rather than consumin
 
 <div align="center">
 
-*Built to understand containers from the syscall up — not to replace Docker, but to demystify it.*
+*Built to understand containers from the syscall up.*
 
 </div>
