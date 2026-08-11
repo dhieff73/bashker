@@ -7,7 +7,6 @@
 [![Language](https://img.shields.io/badge/language-Bash-4EAA25?style=for-the-badge&logo=gnubash&logoColor=white)](https://www.gnu.org/software/bash/)
 [![Kernel](https://img.shields.io/badge/Linux%20Kernel-4.18%2B-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://kernel.org)
 [![Filesystem](https://img.shields.io/badge/Storage-OverlayFS-0091EA?style=for-the-badge&logo=files&logoColor=white)](https://docs.kernel.org/filesystems/overlayfs.html)
-[![License](https://img.shields.io/badge/License-MIT-lightgrey?style=for-the-badge)](#license)
 [![Dependencies](https://img.shields.io/badge/Dependencies-Zero-success?style=for-the-badge)](#prerequisites--installation)
 
 </div>
